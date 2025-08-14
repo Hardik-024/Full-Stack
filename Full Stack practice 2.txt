@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dynamic Product Filter</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 30px;
+    }
+    h1 {
+        color: #333;
+    }
+    select {
+        padding: 8px;
+        margin-bottom: 20px;
+        font-size: 16px;
+    }
+    .product-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    .product {
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        padding: 10px;
+        width: 150px;
+        text-align: center;
+        background-color: #f9f9f9;
+    }
+    .hidden {
+        display: none;
+    }
+</style>
+</head>
+<body>
+
+<h1>Product Filter</h1>
+
+<!-- Dropdown -->
+<select id="categoryFilter">
+    <option value="all">All</option>
+    <option value="shoes">Shoes</option>
+    <option value="shirts">Shirts</option>
+    <option value="gadgets">Gadgets</option>
+</select>
+
+<!-- Product List -->
+<div class="product-list" id="productList">
+    <div class="product" data-category="shoes">Running Shoes</div>
+    <div class="product" data-category="shoes">Sneakers</div>
+    <div class="product" data-category="shirts">T-Shirt</div>
+    <div class="product" data-category="shirts">Formal Shirt</div>
+    <div class="product" data-category="gadgets">Smartphone</div>
+    <div class="product" data-category="gadgets">Smartwatch</div>
+</div>
+
+<script>
+    const filterDropdown = document.getElementById('categoryFilter');
+    const products = document.querySelectorAll('.product');
+
+    filterDropdown.addEventListener('change', function() {
+        const selectedCategory = this.value;
+
+        products.forEach(product => {
+            const category = product.getAttribute('data-category');
+            if (selectedCategory === 'all' || category === selectedCategory) {
+                product.classList.remove('hidden');
+            } else {
+                product.classList.add('hidden');
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
