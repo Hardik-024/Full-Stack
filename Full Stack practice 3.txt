@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SVG Mini Vector Editor</title>
+<style>
+  :root { --bg:#0f172a; --panel:#1e293b; --line:#475569; --text:#e5e7eb; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    display: flex; justify-content: center; padding: 18px;
+  }
+  .wrap { width: min(1100px, 100%); }
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;
+    background: #0b1220; padding: 10px; border: 1px solid #0b1529; border-radius: 10px;
+  }
+  select, input, button {
+    padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--text);
+  }
+  button { cursor: pointer; }
+  button:hover { filter: brightness(1.05); }
+  .canvas {
+    width: 100%; height: 560px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 12px; display: block; cursor: crosshair;
+  }
+  .hint { font-size: 13px; color: #9aa7b4; margin-top: 8px; }
+  /* selection visuals */
+  .sel-outline { fill: none; stroke: #93c5fd; stroke-dasharray: 6 4; pointer-events: none; }
+  .handle { fill: #93c5fd; stroke: #1e40af; stroke-width: 1; cursor: nwse-resize; }
+  .handle.ne, .handle.sw { cursor: nesw-resize; }
+  .handle-circle { rx: 5; ry: 5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="toolbar">
+    <select id="tool">
+      <optgroup label="Modes">
+        <option value="select">Select / Edit</option>
+      </optgroup>
+      <optgroup label="Draw Shapes">
+        <option value="rect">Rectangle</option>
+        <option value="square">Square</option>
+        <option value="line">Line</option>
+        <option value="circle">Circle</option>
+        <option value="ellipse">Ellipse</option>
+        <option value="triangle">Triangle</option>
+        <option value="rhombus">Rhombus</option>
+        <option value="star">Star</option>
+        <option value="pentagon">Pentagon</option>
+        <option value="hexagon">Hexagon</option>
+        <option value="octagon">Octagon</option>
+        <option value="arrow">Arrow</option>
+        <option value="parallelogram">Parallelogram</option>
+        <option value="trapezoid">Trapezoid</option>
+        <option value="cross">Cross</option>
+      </optgroup>
+    </select>
+    <label>Stroke <input type="color" id="strokeColor" value="#3b82f6"></label>
+    <label>Fill <input type="color" id="fillColor" value="#00000000"></label>
+    <label>Width <input type="number" id="strokeWidth" value="2" min="1" max="12" style="width:70px"></label>
+    <button id="undoBtn" title="Ctrl+Z">Undo</button>
+    <button id="redoBtn" title="Ctrl+Y">Redo</button>
+    <button id="clearBtn">Clear</button>
+  </div>
+
+  <svg id="svg" class="canvas" xmlns="http://www.w3.org/2000/svg">
+    <!-- Shapes live here -->
+    <g id="scene"></g>
+    <!-- UI overlay lives here -->
+    <g id="ui"></g>
+  </svg>
+
+  <div class="hint">
+    Draw mode: click & drag to create shapes. Hold <b>Shift</b> for perfect squares/circles. <br/>
+    Select mode: click a shape to select. Drag to move. Drag a handle to resize (rect/square/circle/ellipse). Press <b>Esc</b> to clear selection.
+  </div>
+</div>
+
+<script>
+(function(){
+  const svg = document.getElementById('svg');
+  const scene = document.getElementById('scene'); // only this is saved in history
+  const ui = document.getElementById('ui');
+  const tool = document.getElementById('tool');
+  const strokeColor = document.getElementById('strokeColor');
+  const fillColor = document.getElementById('fillColor');
+  const strokeWidth = document.getElementById('strokeWidth');
+  const undoBtn = document.getElementById('undoBtn');
+  const redoBtn = document.getElementById('redoBtn');
+  const clearBtn = document.getElementById('clearBtn');
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  let isDrawing = false, isDragging = false, isResizing = false;
+  let start = {x:0,y:0};
+  let currentEl = null;
+  let selected = null;
+  let resizeHandle = null; // which handle is active
+  let selectionUI = null;
+  let undoStack = [], redoStack = [];
+
+  // ----- Utilities
+  function getMousePos(evt) {
+    const pt = svg.createSVGPoint();
+    pt.x = evt.clientX; pt.y = evt.clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  }
+  function saveState() {
+    undoStack.push(scene.innerHTML);
+    if (undoStack.length > 300) undoStack.shift(); // lightweight cap
+    redoStack = [];
+  }
+  function createPolygon(points) {
+    const el = document.createElementNS(SVG_NS, 'polygon');
+    el.setAttribute('points', points.map(p => p.join(',')).join(' '));
+    styleShape(el);
+    return el;
+  }
+  function styleShape(el){
+    el.setAttribute('fill', fillColor.value);
+    el.setAttribute('stroke', strokeColor.value);
+    el.setAttribute('stroke-width', strokeWidth.value);
+    el.setAttribute('vector-effect','non-scaling-stroke');
+  }
+  function isDrawableMode() { return tool.value !== 'select'; }
+
+  // ----- Shape geometry
+  function shapePoints(shape, x1,y1,x2,y2) {
+    const w=x2-x1, h=y2-y1;
+    const cx=(x1+x2)/2, cy=(y1+y2)/2;
+    const absW=Math.abs(w), absH=Math.abs(h);
+    switch(shape){
+      case 'triangle': return [[cx,y1],[x1,y2],[x2,y2]];
+      case 'rhombus': return [[cx,y1],[x2,cy],[cx,y2],[x1,cy]];
+      case 'pentagon':
+      case 'hexagon':
+      case 'octagon':
+      case 'star': {
+        const sides = {pentagon:5, hexagon:6, octagon:8, star:10}[shape];
+        const r = Math.min(absW, absH)/2;
+        const pts=[];
+        for(let i=0;i<sides;i++){
+          const angle = (Math.PI*2*i)/sides - Math.PI/2;
+          const radius = (shape==='star' && i%2===1) ? r/2 : r;
+          pts.push([cx + radius*Math.cos(angle), cy + radius*Math.sin(angle)]);
+        }
+        return pts;
+      }
+      case 'arrow': return [[x1,cy],[cx,y1],[x2,cy],[cx,y2]];
+      case 'parallelogram': return [[x1+absW/4,y1],[x2,y1],[x2-absW/4,y2],[x1,y2]];
+      case 'trapezoid': return [[x1+absW/4,y1],[x2-absW/4,y1],[x2,y2],[x1,y2]];
+      case 'cross': return [
+        [cx-absW/4,y1],[cx+absW/4,y1],[cx+absW/4,cy-absH/4],[x2,cy-absH/4],
+        [x2,cy+absH/4],[cx+absW/4,cy+absH/4],[cx+absW/4,y2],[cx-absW/4,y2],
+        [cx-absW/4,cy+absH/4],[x1,cy+absH/4],[x1,cy-absH/4],[cx-absW/4,cy-absH/4]
+      ];
+      default: return [];
+    }
+  }
+
+  // ----- Selection UI
+  function clearSelection(){
+    selected = null;
+    ui.innerHTML = '';
+    selectionUI = null;
+  }
+  function selectShape(el){
+    selected = el;
+    ui.innerHTML = '';
+    const bbox = selected.getBBox();
+    // outline
+    const outline = document.createElementNS(SVG_NS, 'rect');
+    outline.setAttribute('class','sel-outline');
+    outline.setAttribute('x', bbox.x);
+    outline.setAttribute('y', bbox.y);
+    outline.setAttribute('width', bbox.width);
+    outline.setAttribute('height', bbox.height);
+    outline.setAttribute('pointer-events','none');
+    ui.appendChild(outline);
+
+    // four handles (nw, ne, se, sw)
+    const handles = [
+      {k:'nw', x:bbox.x, y:bbox.y},
+      {k:'ne', x:bbox.x+bbox.width, y:bbox.y},
+      {k:'se', x:bbox.x+bbox.width, y:bbox.y+bbox.height},
+      {k:'sw', x:bbox.x, y:bbox.y+bbox.height},
+    ];
+    handles.forEach(h=>{
+      const r = document.createElementNS(SVG_NS,'rect');
+      r.setAttribute('class','handle handle-circle '+h.k);
+      r.setAttribute('x', h.x-5); r.setAttribute('y', h.y-5);
+      r.setAttribute('width', 10); r.setAttribute('height',10);
+      r.dataset.handle = h.k;
+      ui.appendChild(r);
+    });
+    selectionUI = {outline};
+  }
+  function refreshSelectionUI(){
+    if(!selected) return;
+    const bbox = selected.getBBox();
+    selectionUI.outline.setAttribute('x', bbox.x);
+    selectionUI.outline.setAttribute('y', bbox.y);
+    selectionUI.outline.setAttribute('width', bbox.width);
+    selectionUI.outline.setAttribute('height', bbox.height);
+    // update handles
+    const map = {
+      nw:[bbox.x,bbox.y],
+      ne:[bbox.x+bbox.width,bbox.y],
+      se:[bbox.x+bbox.width,bbox.y+bbox.height],
+      sw:[bbox.x,bbox.y+bbox.height]
+    };
+    [...ui.querySelectorAll('.handle')].forEach(h=>{
+      const [x,y]=map[h.dataset.handle];
+      h.setAttribute('x', x-5); h.setAttribute('y', y-5);
+    });
+  }
+
+  // ----- Moving & Resizing
+  function moveShape(el, dx, dy){
+    const tag = el.tagName;
+    if(tag==='rect'){
+      el.setAttribute('x', +el.getAttribute('x') + dx);
+      el.setAttribute('y', +el.getAttribute('y') + dy);
+    } else if(tag==='circle' || tag==='ellipse'){
+      el.setAttribute('cx', +el.getAttribute('cx') + dx);
+      el.setAttribute('cy', +el.getAttribute('cy') + dy);
+    } else if(tag==='line'){
+      el.setAttribute('x1', +el.getAttribute('x1') + dx);
+      el.setAttribute('y1', +el.getAttribute('y1') + dy);
+      el.setAttribute('x2', +el.getAttribute('x2') + dx);
+      el.setAttribute('y2', +el.getAttribute('y2') + dy);
+    } else if(tag==='polygon'){
+      const pts = el.getAttribute('points').trim().split(/\s+/).map(s=>s.split(',').map(Number));
+      const moved = pts.map(([x,y])=>[x+dx,y+dy]);
+      el.setAttribute('points', moved.map(p=>p.join(',')).join(' '));
+    }
+  }
+
+  function resizeShape(el, anchor, cur, keepAspect=false){
+    // anchor = fixed corner (ax,ay), cur = moving corner (cx,cy)
+    const tag = el.tagName;
+    const ax=anchor.x, ay=anchor.y, cx=cur.x, cy=cur.y;
+    if(tag==='rect'){
+      let x = Math.min(ax,cx), y = Math.min(ay,cy);
+      let w = Math.abs(cx-ax), h = Math.abs(cy-ay);
+      if(keepAspect){ const s = Math.max(w,h); w=s; h=s; x = ax<=cx?ax:ax-s; y = ay<=cy?ay:ay-s; }
+      el.setAttribute('x', x); el.setAttribute('y', y);
+      el.setAttribute('width', w); el.setAttribute('height', h);
+    } else if(tag==='circle'){
+      const cx2 = (ax+cx)/2, cy2=(ay+cy)/2;
+      let r = Math.max(Math.abs(cx-ax), Math.abs(cy-ay))/2; // keep circle
+      el.setAttribute('cx', cx2); el.setAttribute('cy', cy2); el.setAttribute('r', r);
+    } else if(tag==='ellipse'){
+      const cx2 = (ax+cx)/2, cy2=(ay+cy)/2;
+      let rx = Math.abs(cx-ax)/2, ry = Math.abs(cy-ay)/2;
+      if(keepAspect){ const s = Math.max(rx,ry); rx=s; ry=s; } // circle-like
+      el.setAttribute('cx', cx2); el.setAttribute('cy', cy2);
+      el.setAttribute('rx', rx); el.setAttribute('ry', ry);
+    }
+    // polygons & lines: not handled here (move only)
+  }
+
+  // Determine anchor from handle + bbox
+  function anchorFromHandle(handle, bbox){
+    switch(handle){
+      case 'nw': return {x:bbox.x+bbox.width, y:bbox.y+bbox.height};
+      case 'ne': return {x:bbox.x, y:bbox.y+bbox.height};
+      case 'se': return {x:bbox.x, y:bbox.y};
+      case 'sw': return {x:bbox.x+bbox.width, y:bbox.y};
+    }
+  }
+
+  // ----- Drawing
+  function beginDrawAt(x,y){
+    const mode = tool.value;
+    if(['rect','square','circle','ellipse','line'].includes(mode)){
+      const tag = (mode==='line')?'line':(mode==='circle')?'circle':(mode==='ellipse')?'ellipse':'rect';
+      currentEl = document.createElementNS(SVG_NS, tag);
+      if(tag==='line'){
+        currentEl.setAttribute('x1', x); currentEl.setAttribute('y1', y);
+        currentEl.setAttribute('x2', x); currentEl.setAttribute('y2', y);
+      } else if(tag==='circle' || tag==='ellipse'){
+        currentEl.setAttribute('cx', x); currentEl.setAttribute('cy', y);
+        currentEl.setAttribute('rx', 0); currentEl.setAttribute('ry', 0);
+      } else {
+        currentEl.setAttribute('x', x); currentEl.setAttribute('y', y);
+        currentEl.setAttribute('width', 0); currentEl.setAttribute('height', 0);
+      }
+      styleShape(currentEl);
+    } else {
+      currentEl = createPolygon(shapePoints(mode, x,y, x,y));
+    }
+    scene.appendChild(currentEl);
+  }
+
+  function updateDrawTo(x,y, shiftKey){
+    if(!currentEl) return;
+    if(currentEl.tagName==='rect'){
+      let w = x - start.x, h = y - start.y;
+      if(tool.value==='square' || shiftKey){
+        const s = Math.max(Math.abs(w), Math.abs(h));
+        w = Math.sign(w)*s; h = Math.sign(h)*s;
+      }
+      currentEl.setAttribute('x', Math.min(start.x, start.x+w));
+      currentEl.setAttribute('y', Math.min(start.y, start.y+h));
+      currentEl.setAttribute('width', Math.abs(w));
+      currentEl.setAttribute('height', Math.abs(h));
+    } else if(currentEl.tagName==='line'){
+      currentEl.setAttribute('x2', x); currentEl.setAttribute('y2', y);
+    } else if(currentEl.tagName==='circle'){
+      const r = Math.max(Math.abs(x-start.x), Math.abs(y-start.y))/2; // keep circle
+      currentEl.setAttribute('r', r);
+      currentEl.setAttribute('cx', (start.x+x)/2);
+      currentEl.setAttribute('cy', (start.y+y)/2);
+    } else if(currentEl.tagName==='ellipse'){
+      let rx = Math.abs(x-start.x)/2, ry = Math.abs(y-start.y)/2;
+      if(shiftKey){ const s = Math.max(rx,ry); rx=s; ry=s; }
+      currentEl.setAttribute('rx', rx); currentEl.setAttribute('ry', ry);
+      currentEl.setAttribute('cx', (start.x+x)/2); currentEl.setAttribute('cy', (start.y+y)/2);
+    } else if(currentEl.tagName==='polygon'){
+      const pts = shapePoints(tool.value, start.x,start.y, x,y);
+      currentEl.setAttribute('points', pts.map(p=>p.join(',')).join(' '));
+    }
+  }
+
+  // ----- Events
+  svg.addEventListener('mousedown', (e)=>{
+    const p = getMousePos(e);
+    start = p;
+
+    const targetIsHandle = e.target.classList?.contains('handle');
+    if(tool.value==='select'){
+      if(targetIsHandle && selected){
+        // start resizing
+        isResizing = true;
+        resizeHandle = e.target.dataset.handle;
+        saveState();
+        return;
+      }
+      // if clicked a shape -> select and maybe start dragging
+      const isShape = e.target.closest('#scene') && e.target !== scene;
+      if(isShape){
+        if(selected !== e.target){ selectShape(e.target); }
+        isDragging = true;
+        saveState();
+        return;
+      }
+      // click empty area -> clear selection
+      clearSelection();
+      return;
+    }
+
+    // draw mode
+    saveState();
+    isDrawing = true;
+    beginDrawAt(p.x, p.y);
+    clearSelection();
+  });
+
+  window.addEventListener('mousemove', (e)=>{
+    const p = getMousePos(e);
+
+    if(isDrawing){
+      updateDrawTo(p.x, p.y, e.shiftKey);
+      return;
+    }
+    if(isDragging && selected){
+      const dx = p.x - start.x, dy = p.y - start.y;
+      moveShape(selected, dx, dy);
+      start = p;
+      refreshSelectionUI();
+      return;
+    }
+    if(isResizing && selected){
+      const bbox = selected.getBBox();
+      const anchor = anchorFromHandle(resizeHandle, bbox);
+      resizeShape(selected, anchor, p, e.shiftKey);
+      refreshSelectionUI();
+      return;
+    }
+  });
+
+  window.addEventListener('mouseup', ()=>{
+    isDrawing = false; isDragging = false; isResizing = false; resizeHandle = null; currentEl = null;
+  });
+
+  // click to select (also works if user just clicks once)
+  scene.addEventListener('click', (e)=>{
+    if(tool.value!=='select') return;
+    const isShape = e.target.closest('#scene') && e.target !== scene;
+    if(isShape){ selectShape(e.target); }
+  });
+
+  // keyboard shortcuts
+  window.addEventListener('keydown', (e)=>{
+    if(e.key==='Escape'){ clearSelection(); }
+    if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ // undo
+      undoBtn.click(); e.preventDefault();
+    }
+    if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='y'){ // redo
+      redoBtn.click(); e.preventDefault();
+    }
+    // delete removes selection
+    if(e.key==='Delete' || e.key==='Backspace'){
+      if(selected){
+        saveState();
+        selected.remove(); clearSelection();
+      }
+    }
+  });
+
+  // ----- History buttons
+  undoBtn.addEventListener('click', ()=>{
+    if(undoStack.length>0){
+      redoStack.push(scene.innerHTML);
+      scene.innerHTML = undoStack.pop();
+      clearSelection();
+    }
+  });
+  redoBtn.addEventListener('click', ()=>{
+    if(redoStack.length>0){
+      undoStack.push(scene.innerHTML);
+      scene.innerHTML = redoStack.pop();
+      clearSelection();
+    }
+  });
+  clearBtn.addEventListener('click', ()=>{
+    saveState();
+    scene.innerHTML = '';
+    clearSelection();
+  });
+})();
+</script>
+</body>
+</html>
