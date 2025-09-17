@@ -1,0 +1,170 @@
+/* Full screen container */
+.app-container {
+  display: flex;
+  flex-direction: row;          /* align in a row */
+  justify-content: space-evenly;/* spread evenly across full width */
+  align-items: flex-start;      /* align at top */
+  padding: 20px;
+  min-height: 100vh;            /* full height */
+  width: 100%;                  /* full width */
+  background-color: #f3f4f6;    /* light gray */
+  box-sizing: border-box;
+}
+
+/* Product card styles */
+.product-card {
+  flex: 1;                      /* let cards expand equally */
+  max-width: 220px;             /* don’t get too big */
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  background-color: white;
+  text-align: center;
+  color: black;
+}
+
+.product-card h2 {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.price {
+  color: #555;
+  margin-bottom: 10px;
+}
+
+.in-stock {
+  color: green;
+  font-weight: bold;
+}
+
+.out-of-stock {
+  color: red;
+  font-weight: bold;
+}
+
+
+
+
+
+
+
+
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Force light theme */
+  color-scheme: light;
+  color: #213547;
+  background-color: #ffffff; /* ✅ White background */
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #f3f4f6; /* ✅ Matches App background */
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  color: white;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+
+
+
+
+
+import React from "react";
+import "./App.css";
+
+const ProductCard = ({ name, price, inStock }) => {
+  return (
+    <div className="product-card">
+      <h2>{name}</h2>
+      <p className="price">Price: ${price}</p>
+      <p className={inStock ? "in-stock" : "out-of-stock"}>
+        {inStock ? "In Stock ✅" : "Out of Stock ❌"}
+      </p>
+    </div>
+  );
+};
+
+export default ProductCard;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import React from "react";
+import ProductCard from "./ProductCard";
+import "./App.css";
+
+const App = () => {
+  const products = [
+    { name: "Gaming Mouse", price: 49, inStock: true },
+    { name: "Mechanical Keyboard", price: 129, inStock: false },
+    { name: "HD Monitor", price: 249, inStock: true },
+  ];
+
+  return (
+    <div className="app-container">
+      {products.map((product, index) => (
+        <ProductCard
+          key={index}
+          name={product.name}
+          price={product.price}
+          inStock={product.inStock}
+        />
+      ))}
+    </div>
+  );
+};
+
+export default App;
