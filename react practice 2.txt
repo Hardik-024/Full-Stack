@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Library Management</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+
+.library-container {
+    border: 1px solid #000;
+    padding: 16px;
+    margin: 20px auto;
+    width: 400px;
+    background: #fff;
+    border-radius: 6px;
+  }
+  
+  h2 {
+    margin-bottom: 12px;
+  }
+  
+  .search-box {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  
+  .add-form {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  
+  .add-form input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  
+  .add-form button {
+    padding: 8px 12px;
+    border: none;
+    background-color: #007bff;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .add-form button:hover {
+    background-color: #0056b3;
+  }
+  
+  .book-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .book-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid #ddd;
+    padding: 8px;
+    border-radius: 4px;
+  }
+  
+  .book-item button {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .book-item button:hover {
+    background: #a71d2a;
+  }
+
+import React, { useState } from "react";
+import "./App.css"; // import styling
+
+function App() {
+  const [books, setBooks] = useState([
+    { title: "1984", author: "George Orwell" },
+    { title: "The Great Gatsby", author: "F. Scott Fitzgerald" },
+    { title: "To Kill a Mockingbird", author: "Harper Lee" },
+  ]);
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [newAuthor, setNewAuthor] = useState("");
+
+  // Add book
+  const addBook = () => {
+    if (newTitle.trim() && newAuthor.trim()) {
+      setBooks([...books, { title: newTitle, author: newAuthor }]);
+      setNewTitle("");
+      setNewAuthor("");
+    }
+  };
+
+  // Remove book
+  const removeBook = (index) => {
+    setBooks(books.filter((_, i) => i !== index));
+  };
+
+  // Search filter
+  const filteredBooks = books.filter(
+    (book) =>
+      book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      book.author.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="library-container">
+      <h2>Library Management</h2>
+
+      {/* Search */}
+      <input
+        type="text"
+        placeholder="Search by title or author"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="search-box"
+      />
+
+      {/* Add new book */}
+      <div className="add-form">
+        <input
+          type="text"
+          placeholder="New book title"
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+        />
+        <input
+          type="text"
+          placeholder="New book author"
+          value={newAuthor}
+          onChange={(e) => setNewAuthor(e.target.value)}
+        />
+        <button onClick={addBook}>Add Book</button>
+      </div>
+
+      {/* Book list */}
+      <div className="book-list">
+        {filteredBooks.map((book, index) => (
+          <div key={index} className="book-item">
+            <span>
+              <strong>{book.title}</strong> by {book.author}
+            </span>
+            <button onClick={() => removeBook(index)}>Remove</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default App;
+
+/* Reset some default browser styles */
+body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background-color: #f9f9f9;
+  }
+  
+  /* Center the app */
+  #root {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding-top: 40px;
+  }
+
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.jsx";
+import "./index.css"; // global styles
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
