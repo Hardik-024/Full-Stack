@@ -1,0 +1,177 @@
+my-project/
+│
+├── public/
+│   └── index.html   (default Vite file, no changes needed)
+│
+├── src/
+│   ├── components/
+│   │   ├── Person.js
+│   │   ├── Student.js
+│   │   └── Teacher.js
+│   │
+│   ├── App.jsx
+│   ├── App.css
+│   ├── index.css
+│   └── main.jsx
+
+
+
+
+
+class Person {
+  constructor(name, age) {
+    this.name = name;
+    this.age = age;
+  }
+
+  displayInfo() {
+    return `Name: ${this.name}, Age: ${this.age}`;
+  }
+}
+
+export default Person;
+
+
+
+
+
+
+import Person from "./Person";
+
+class Student extends Person {
+  constructor(name, age, course) {
+    super(name, age);
+    this.course = course;
+  }
+
+  displayInfo() {
+    return `${super.displayInfo()}, Course: ${this.course}`;
+  }
+}
+
+export default Student;
+
+
+
+
+
+
+
+import Person from "./Person";
+
+class Teacher extends Person {
+  constructor(name, age, subject) {
+    super(name, age);
+    this.subject = subject;
+  }
+
+  displayInfo() {
+    return `${super.displayInfo()}, Subject: ${this.subject}`;
+  }
+}
+
+export default Teacher;
+
+
+
+
+
+
+
+
+
+
+import React from "react";
+import Student from "./components/Student";
+import Teacher from "./components/Teacher";
+import "./App.css";
+
+const App = () => {
+  const student1 = new Student("Alice", 20, "Computer Science");
+  const teacher1 = new Teacher("Mr. Smith", 40, "Mathematics");
+
+  return (
+    <div className="container">
+      <div className="card">
+        <h1>Class Inheritance Example</h1>
+        <div className="person-card">{student1.displayInfo()}</div>
+        <div className="person-card">{teacher1.displayInfo()}</div>
+      </div>
+    </div>
+  );
+};
+
+export default App;
+
+
+
+
+
+
+
+
+/* Center the card on the screen */
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;   /* full screen height */
+  background-color: #f5f5f5;
+}
+
+/* Main card */
+.card {
+  background: white;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0px 4px 12px rgba(0,0,0,0.1);
+  text-align: center;
+  width: 400px;
+}
+
+/* Student and Teacher mini cards */
+.person-card {
+  margin: 10px 0;
+  padding: 15px;
+  background: #f0f0f0;
+  border-radius: 8px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Reset margin and set font */
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+
+
+
+
+
+
+
+
+
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import "./index.css";
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
