@@ -1,0 +1,141 @@
+app.js
+
+const express = require("express");
+const routes = require("./routes/index");
+
+const app = express();
+const PORT = 3000;
+
+// Middleware
+app.use(express.json()); // replaces body-parser
+app.use(express.static("src")); // serve index.html if present
+
+// Routes
+app.use("/api", routes);
+
+// Root route (optional, to avoid "Cannot GET /")
+app.get("/", (req, res) => {
+  res.send("🚀 Playing Card API is running!");
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+});
+
+
+
+
+index.js
+
+
+const express = require("express");
+const router = express.Router();
+
+// In-memory employee data
+let employees = [
+  { name: "Alice", id: "E101" },
+  { name: "Bob", id: "E102" },
+  { name: "Charlie", id: "E103" }
+];
+
+// Get all employees
+router.get("/employees", (req, res) => {
+  res.json(employees);
+});
+
+// Add new employee
+router.post("/employees", (req, res) => {
+  const { name, id } = req.body;
+  if (!name || !id) {
+    return res.status(400).json({ message: "Name and ID are required" });
+  }
+  if (employees.some(emp => emp.id === id)) {
+    return res.status(400).json({ message: `Employee ID ${id} already exists` });
+  }
+  employees.push({ name, id });
+  res.json({ message: `Employee ${name} (ID: ${id}) added successfully.` });
+});
+
+// Remove employee by ID
+router.delete("/employees/:id", (req, res) => {
+  const { id } = req.params;
+  const index = employees.findIndex(emp => emp.id === id);
+  if (index !== -1) {
+    const removed = employees.splice(index, 1);
+    res.json({ message: `Employee ${removed[0].name} (ID: ${removed[0].id}) removed successfully.` });
+  } else {
+    res.status(404).json({ message: `No employee found with ID: ${id}` });
+  }
+});
+
+module.exports = router;
+
+
+
+
+
+
+
+
+
+index.html
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Employee Management System</title>
+</head>
+<body>
+  <h1>Employee Management System</h1>
+
+  <button onclick="listEmployees()">List Employees</button>
+
+  <h2>Add Employee</h2>
+  <input type="text" id="empName" placeholder="Name">
+  <input type="text" id="empId" placeholder="ID">
+  <button onclick="addEmployee()">Add</button>
+
+  <h2>Remove Employee</h2>
+  <input type="text" id="removeId" placeholder="Enter ID">
+  <button onclick="removeEmployee()">Remove</button>
+
+  <h2>Employee List</h2>
+  <ul id="employeeList"></ul>
+
+  <script>
+    async function listEmployees() {
+      const res = await fetch("/api/employees");
+      const employees = await res.json();
+      const list = document.getElementById("employeeList");
+      list.innerHTML = "";
+      employees.forEach(emp => {
+        const li = document.createElement("li");
+        li.textContent = `${emp.name} (ID: ${emp.id})`;  // ✅ fixed
+        list.appendChild(li);
+      });
+    }
+
+    async function addEmployee() {
+      const name = document.getElementById("empName").value;
+      const id = document.getElementById("empId").value;
+      await fetch("/api/employees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, id })
+      });
+      listEmployees();
+    }
+
+    async function removeEmployee() {
+      const id = document.getElementById("removeId").value;
+      await fetch(`/api/employees/${id}`, { method: "DELETE" }); // ✅ fixed
+      listEmployees();
+    }
+  </script>
+</body>
+</html>
+
+
