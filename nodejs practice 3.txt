@@ -1,0 +1,173 @@
+app.js
+
+const express = require("express");
+const path = require("path");
+const routes = require("./routes/index");
+
+const app = express();
+const PORT = 3000;
+
+// Middleware
+app.use(express.json());
+
+// Serve frontend HTML
+app.use("/", express.static(path.join(__dirname)));
+
+// Routes
+app.use("/", routes);
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+});
+
+
+
+
+index.js
+
+const express = require("express");
+const router = express.Router();
+
+// In-memory seat storage
+let seats = {};
+const totalSeats = 10;
+
+// Initialize all seats as available
+for (let i = 1; i <= totalSeats; i++) {
+  seats[i] = { status: "available", lockTimer: null };
+}
+
+// ✅ Get all seats
+router.get("/seats", (req, res) => {
+  res.status(200).json(seats);
+});
+
+// ✅ Lock a seat
+router.post("/lock/:seatId", (req, res) => {
+  const seatId = req.params.seatId;
+  const seat = seats[seatId];
+
+  if (!seat) {
+    return res.status(404).json({ message: "Seat not found" });
+  }
+
+  if (seat.status === "booked") {
+    return res.status(400).json({ message: `Seat ${seatId} is already booked` });
+  }
+
+  if (seat.status === "locked") {
+    return res.status(400).json({ message: `Seat ${seatId} is already locked` });
+  }
+
+  // Lock seat
+  seat.status = "locked";
+  seat.lockTimer = setTimeout(() => {
+    if (seat.status === "locked") {
+      seat.status = "available";
+      seat.lockTimer = null;
+    }
+  }, 60 * 1000); // auto release after 1 min
+
+  res
+    .status(200)
+    .json({ message: `Seat ${seatId} locked successfully. Confirm within 1 minute.` });
+});
+
+// ✅ Confirm a locked seat
+router.post("/confirm/:seatId", (req, res) => {
+  const seatId = req.params.seatId;
+  const seat = seats[seatId];
+
+  if (!seat) {
+    return res.status(404).json({ message: "Seat not found" });
+  }
+
+  if (seat.status !== "locked") {
+    return res
+      .status(400)
+      .json({ message: "Seat is not locked and cannot be booked" });
+  }
+
+  // Confirm booking
+  seat.status = "booked";
+  if (seat.lockTimer) {
+    clearTimeout(seat.lockTimer);
+    seat.lockTimer = null;
+  }
+
+  res.status(200).json({ message: `Seat ${seatId} booked successfully!` });
+});
+
+module.exports = router;
+
+
+
+
+
+
+index.html
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Seat Booking System</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .seat { 
+      display: inline-block; 
+      width: 50px; 
+      height: 50px; 
+      margin: 5px; 
+      text-align: center; 
+      line-height: 50px; 
+      border-radius: 5px; 
+      cursor: pointer; 
+      font-weight: bold;
+    }
+    .available { background: lightgreen; }
+    .locked { background: orange; }
+    .booked { background: red; color: white; }
+  </style>
+</head>
+<body>
+  <h2>🎟 Seat Booking System</h2>
+  <div id="seats"></div>
+
+  <script>
+    async function loadSeats() {
+      const res = await fetch("/seats");
+      const data = await res.json();
+      const seatsDiv = document.getElementById("seats");
+      seatsDiv.innerHTML = "";
+
+      Object.keys(data).forEach(id => {
+        const seat = document.createElement("div");
+        seat.innerText = id;
+        seat.className = `seat ${data[id].status}`;
+        seat.onclick = () => handleSeatClick(id, data[id].status);
+        seatsDiv.appendChild(seat);
+      });
+    }
+
+    async function handleSeatClick(id, status) {
+      if (status === "available") {
+        const res = await fetch(`/lock/${id}`, { method: "POST" });
+        alert((await res.json()).message);
+      } else if (status === "locked") {
+        const res = await fetch(`/confirm/${id}`, { method: "POST" });
+        alert((await res.json()).message);
+      } else {
+        alert("Seat already booked!");
+      }
+      loadSeats();
+    }
+
+    loadSeats();
+    setInterval(loadSeats, 5000); // auto-refresh every 5 sec
+  </script>
+</body>
+</html>
